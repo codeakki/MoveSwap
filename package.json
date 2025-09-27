@@ -5,6 +5,7 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
+    "cli": "ts-node cli.ts",
     "start": "ts-node examples/eth_sui_swap.ts",
     "start:limit-order": "ts-node examples/limit-order-atomic-swap.ts",
     "deploy:escrow": "ts-node scripts/deploy-limit-order-escrow.ts",
@@ -17,29 +18,33 @@
     "coverage": "hardhat coverage"
   },
   "dependencies": {
+    "@1inch/cross-chain-sdk": "^1.0.2",
+    "@1inch/fusion-sdk": "^2.1.12-rc.0",
+    "@1inch/limit-order-protocol-utils": "^4.0.1",
+    "@1inch/limit-order-sdk": "^5.2.0",
     "@mysten/sui": "^0.0.0-experimental-20240104040340",
     "@openzeppelin/contracts": "^5.4.0",
+    "axios": "^1.12.2",
     "blake2b": "^2.1.4",
     "dotenv": "^17.2.2",
     "ethers": "^5.7.2"
-
   },
   "devDependencies": {
-    "@types/node": "^18.0.0",
-    "ts-node": "^10.9.1",
-    "typescript": "^4.9.5",
-    "hardhat": "^2.19.0",
-    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
-    "@nomicfoundation/hardhat-network-helpers": "^1.0.0",
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.0",
     "@nomicfoundation/hardhat-ethers": "^3.0.0",
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.0",
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
     "@nomicfoundation/hardhat-verify": "^2.0.0",
-    "@typechain/hardhat": "^9.0.0",
     "@typechain/ethers-v6": "^0.5.0",
+    "@typechain/hardhat": "^9.0.0",
+    "@types/node": "^18.0.0",
     "chai": "^4.2.0",
     "ethers": "^6.4.0",
+    "hardhat": "^2.19.0",
     "hardhat-gas-reporter": "^1.0.8",
     "solidity-coverage": "^0.8.1",
-    "typechain": "^8.3.0"
+    "ts-node": "^10.9.1",
+    "typechain": "^8.3.0",
+    "typescript": "^4.9.5"
   }
 }

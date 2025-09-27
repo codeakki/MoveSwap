@@ -1,13 +1,51 @@
 {
-    "ethereum": {
-        "rpc": "https://eth-mainnet.g.alchemy.com/v2/YOUR-ALCHEMY-KEY",
-        "limitOrderEscrowAddress": "YOUR_MAINNET_ESCROW_ADDRESS",
-        "limitOrderProtocol": "0x1111111254EEB25477B68fb85Ed929f73A960582",
-        "weth": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
-        "privateKey": "22dd0b028cba53bc1d93cd86409b10f36adb217b7e3f3544b051801cd1cf78ac"
+    "base": {
+        "rpc": "https://base-mainnet.g.alchemy.com/v2/9IGMuw0KkOPTMWaWT6y_P",
+        "htlcContract": "0x4eEDCb01601F9e488B45B99a33510ab814E3383B",
+        "limitOrderProtocol": "0x111111125421ca6dc452d289314280a0f8842a65",
+        "weth": "0x4200000000000000000000000000000000000006",
+        "usdc": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "privateKey": "22dd0b028cba53bc1d93cd86409b10f36adb217b7e3f3544b051801cd1cf78ac",
+        "chainId": 8453
     },
     "sui": {
-        "packageId": "0xbca59ac1a990488c4b1226c8710c3f6dd98a18848abe711cfb579f34ac87f9a1",
+        "packageId": "0x5297cf1080eecc96654501b93946782771803a4707d76e99e0cf0735d68f4042",
         "privateKey": "017374a966bd74ef0e97e968ed9d67cb6e71fafbfff98a8482899cf974b5b7dd1b"
+    },
+    "tokens": {
+        "ETH": "0x0000000000000000000000000000000000000000",
+        "WETH": "0x4200000000000000000000000000000000000006",
+        "USDC": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "USDT": "0xF977814e90dA44bFA03b6295A0616a897441aceC",
+        "DAI": "0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb"
+    },
+    "networks": {
+        "mainnet": {
+            "base": {
+                "rpc": "https://base-mainnet.g.alchemy.com/v2/9IGMuw0KkOPTMWaWT6y_P",
+                "htlcContract": "0x4eEDCb01601F9e488B45B99a33510ab814E3383B",
+                "limitOrderProtocol": "0x111111125421ca6dc452d289314280a0f8842a65",
+                "weth": "0x4200000000000000000000000000000000000006",
+                "usdc": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                "chainId": 8453
+            },
+            "sui": {
+                "rpc": "https://sui-mainnet-rpc.allthatnode.com",
+                "packageId": "0x5297cf1080eecc96654501b93946782771803a4707d76e99e0cf0735d68f4042"
+            }
+        },
+        "base-sepolia": {
+            "base": {
+                "rpc": "https://sepolia.base.org",
+                "limitOrderProtocol": "0x111111125421ca6dc452d289314280a0f8842a65",
+                "weth": "0x4200000000000000000000000000000000000006",
+                "usdc": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                "chainId": 84532
+            },
+            "sui": {
+                "rpc": "https://sui-testnet-rpc.allthatnode.com",
+                "packageId": "0x5d4356c8b1d54fa4ff50afe4702ca2329cf7884eb8edb48399ffce907ecd14b0"
+            }
+        }
     }
 }
