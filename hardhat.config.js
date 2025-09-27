@@ -18,6 +18,16 @@ module.exports = {
       url: "https://ethereum-sepolia-rpc.publicnode.com",
       accounts: process.env.ETH_PRIVATE_KEY ? [process.env.ETH_PRIVATE_KEY] : [],
     },
+    base: {
+      url: "https://mainnet.base.org",
+      accounts: process.env.ETH_PRIVATE_KEY ? [process.env.ETH_PRIVATE_KEY] : [],
+      chainId: 8453,
+    },
+    baseSepolia: {
+      url: "https://sepolia.base.org",
+      accounts: process.env.ETH_PRIVATE_KEY ? [process.env.ETH_PRIVATE_KEY] : [],
+      chainId: 84532,
+    },
     hardhat: {
       chainId: 1337,
     },

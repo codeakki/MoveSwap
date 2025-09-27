@@ -3,13 +3,34 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-// Configuration
-const config = {
-    oneInchLimitOrderProtocol: "0x1111111254EEB25477B68fb85Ed929f73A960582", // 1inch Limit Order Protocol address on Sepolia
+// Network-specific configuration
+const getNetworkConfig = (networkName: string) => {
+    const configs: { [key: string]: { oneInchLimitOrderProtocol: string } } = {
+        sepolia: {
+            oneInchLimitOrderProtocol: "0x1111111254EEB25477B68fb85Ed929f73A960582", // 1inch Limit Order Protocol address on Sepolia
+        },
+        base: {
+            oneInchLimitOrderProtocol: "0x1111111254EEB25477B68fb85Ed929f73A960582", // 1inch Limit Order Protocol address on Base (verify this address)
+        },
+        baseSepolia: {
+            oneInchLimitOrderProtocol: "0x1111111254EEB25477B68fb85Ed929f73A960582", // 1inch Limit Order Protocol address on Base Sepolia (verify this address)
+        }
+    };
+    
+    return configs[networkName] || configs.sepolia;
 };
 
 async function deployContracts() {
     console.log("Deploying contracts...");
+
+    // Get the current network
+    const network = await ethers.provider.getNetwork();
+    const networkName = network.name === 'unknown' ? 'hardhat' : network.name;
+    console.log(`Deploying to network: ${networkName} (chainId: ${network.chainId})`);
+
+    // Get network-specific configuration
+    const config = getNetworkConfig(networkName);
+    console.log(`Using 1inch protocol address: ${config.oneInchLimitOrderProtocol}`);
 
     // Get the signer from Hardhat
     const [deployer] = await ethers.getSigners();
@@ -58,7 +79,8 @@ async function deployContracts() {
 
     // Save deployment addresses to config file
     const deploymentConfig = {
-        network: "sepolia",
+        network: networkName,
+        chainId: Number(network.chainId),
         htlcAddress: htlcAddress,
         oneInchIntegrationAddress: oneInchIntegrationAddress,
         oneInchLimitOrderProtocol: config.oneInchLimitOrderProtocol,
