@@ -1,12 +1,13 @@
 {
     "ethereum": {
-        "rpc": "https://eth-sepolia.g.alchemy.com/v2/YOUR-ALCHEMY-KEY",
-        "htlcAddress": "0x0000000000000000000000000000000000000000",
-        "privateKey": "YOUR_ETHEREUM_PRIVATE_KEY_HERE"
+        "rpc": "https://eth-mainnet.g.alchemy.com/v2/YOUR-ALCHEMY-KEY",
+        "limitOrderEscrowAddress": "YOUR_MAINNET_ESCROW_ADDRESS",
+        "limitOrderProtocol": "0x1111111254EEB25477B68fb85Ed929f73A960582",
+        "weth": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+        "privateKey": "22dd0b028cba53bc1d93cd86409b10f36adb217b7e3f3544b051801cd1cf78ac"
     },
     "sui": {
-        "rpc": "https://fullnode.testnet.sui.io:443",
-        "packageId": "0x0000000000000000000000000000000000000000",
-        "privateKey": "YOUR_SUI_PRIVATE_KEY_HERE"
+        "packageId": "0xbca59ac1a990488c4b1226c8710c3f6dd98a18848abe711cfb579f34ac87f9a1",
+        "privateKey": "017374a966bd74ef0e97e968ed9d67cb6e71fafbfff98a8482899cf974b5b7dd1b"
     }
 }

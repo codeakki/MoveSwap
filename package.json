@@ -6,6 +6,8 @@
   "scripts": {
     "build": "tsc",
     "start": "ts-node examples/eth_sui_swap.ts",
+    "start:limit-order": "ts-node examples/limit-order-atomic-swap.ts",
+    "deploy:escrow": "ts-node scripts/deploy-limit-order-escrow.ts",
     "test": "jest"
   },
   "dependencies": {
