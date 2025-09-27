@@ -6,10 +6,12 @@ This project implements a cross-chain swap solution between Ethereum and Sui net
 
 - Bidirectional token swaps between Ethereum and Sui networks
 - Trustless execution using HTLCs
-- Integration with 1inch Fusion+ protocol
+- Integration with 1inch Limit Order Protocol for order filling
+- Direct integration with 1inch smart contracts on EVM
 - Secure secret management
 - Real-time order status monitoring
 - Support for multiple token pairs
+- Modular architecture with separate 1inch integration contract
 
 ## Prerequisites
 
@@ -123,30 +125,77 @@ async function swapSUItoETH() {
 }
 ```
 
+### 1inch Limit Order Protocol Integration
+
+```typescript
+import { OneInchHTLCSwap } from './examples/oneinch_integration'
+
+// Initialize the swap with 1inch integration
+const swap = new OneInchHTLCSwap()
+
+// Create HTLC with 1inch capability
+const htlcId = await swap.createHTLCWithOneInch(
+  receiverAddress,
+  tokenAddress,
+  amount,
+  timelock
+)
+
+// Execute 1inch order within HTLC
+await swap.executeOneInchOrder(
+  htlcId,
+  oneInchOrder,
+  signature,
+  interaction,
+  makingAmount,
+  takingAmount,
+  thresholdAmount
+)
+```
+
 ## Architecture
 
 The project consists of several key components:
 
 1. Smart Contracts
-   - Ethereum HTLC Contract
+   - Ethereum HTLC Contract (enhanced with 1inch integration)
+   - OneInchIntegration Contract (direct integration with 1inch Limit Order Protocol)
    - Sui Move HTLC Contract
    - Token Escrow Contracts
 
-2. SDK Integration
+2. 1inch Integration
+   - Direct integration with 1inch Limit Order Protocol smart contracts
+   - Support for fillOrder and fillOrderWithPermit functions
+   - Modular architecture allowing independent upgrades
+
+3. SDK Integration
    - Extended 1inch Cross-chain SDK
    - Custom Sui blockchain provider
    - Integration with ETH provider
 
-3. Core Features
+4. Core Features
    - Bidirectional swaps
    - Hash lock mechanism
    - Timelock safety
    - Secret revelation system
    - Order management
+   - 1inch order execution within HTLC swaps
 
 For detailed implementation steps, see [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md).
 
 ## Development
+
+### Compilation
+
+The contracts are optimized to avoid "Stack too deep" errors:
+
+```bash
+# Compile contracts
+npm run compile
+
+# Test compilation
+npx hardhat run scripts/compile_test.ts
+```
 
 ### Running Tests
 
