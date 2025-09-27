@@ -1,62 +1,69 @@
-import { ethers } from 'ethers';
-import { JsonRpcProvider } from '@ethersproject/providers';
+import { ethers } from 'hardhat';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
 // Configuration
 const config = {
-    ethereumRPC: "https://ethereum-sepolia-rpc.publicnode.com",
-    ethereumPrivateKey: process.env.ETH_PRIVATE_KEY,
     oneInchLimitOrderProtocol: "0x1111111254EEB25477B68fb85Ed929f73A960582", // 1inch Limit Order Protocol address on Sepolia
 };
 
 async function deployContracts() {
     console.log("Deploying contracts...");
 
-    // Setup provider and wallet
-    const provider = new JsonRpcProvider(config.ethereumRPC);
-    const wallet = new ethers.Wallet(config.ethereumPrivateKey!, provider);
+    // Get the signer from Hardhat
+    const [deployer] = await ethers.getSigners();
+    
+    if (!deployer) {
+        throw new Error("No deployer account found. Make sure ETH_PRIVATE_KEY is set in .env file.");
+    }
+    
+    const deployerAddress = await deployer.getAddress();
+    console.log(`Deploying from: ${deployerAddress}`);
 
-    console.log(`Deploying from: ${wallet.address}`);
+    // Check deployer balance
+    const balance = await ethers.provider.getBalance(deployerAddress);
+    console.log(`Deployer balance: ${ethers.formatEther(balance)} ETH`);
 
     // Deploy HTLC contract
     console.log("Deploying HTLC contract...");
     const HTLCFactory = await ethers.getContractFactory("HTLC");
     const htlcContract = await HTLCFactory.deploy();
-    await htlcContract.deployed();
-    console.log(`HTLC contract deployed at: ${htlcContract.address}`);
+    await htlcContract.waitForDeployment();
+    const htlcAddress = await htlcContract.getAddress();
+    console.log(`HTLC contract deployed at: ${htlcAddress}`);
 
     // Deploy OneInchIntegration contract
     console.log("Deploying OneInchIntegration contract...");
     const OneInchIntegrationFactory = await ethers.getContractFactory("OneInchIntegration");
     const oneInchIntegration = await OneInchIntegrationFactory.deploy(
         config.oneInchLimitOrderProtocol,
-        htlcContract.address
+        htlcAddress
     );
-    await oneInchIntegration.deployed();
-    console.log(`OneInchIntegration contract deployed at: ${oneInchIntegration.address}`);
+    await oneInchIntegration.waitForDeployment();
+    const oneInchIntegrationAddress = await oneInchIntegration.getAddress();
+    console.log(`OneInchIntegration contract deployed at: ${oneInchIntegrationAddress}`);
 
     // Set the 1inch integration in HTLC contract
     console.log("Setting 1inch integration in HTLC contract...");
-    const setIntegrationTx = await htlcContract.setOneInchIntegration(oneInchIntegration.address);
+    const setIntegrationTx = await htlcContract.setOneInchIntegration(oneInchIntegrationAddress);
     await setIntegrationTx.wait();
     console.log(`1inch integration set: ${setIntegrationTx.hash}`);
 
     // Verify contracts
     console.log("\n=== Deployment Summary ===");
-    console.log(`HTLC Contract: ${htlcContract.address}`);
-    console.log(`OneInchIntegration Contract: ${oneInchIntegration.address}`);
+    console.log(`HTLC Contract: ${htlcAddress}`);
+    console.log(`OneInchIntegration Contract: ${oneInchIntegrationAddress}`);
     console.log(`1inch Limit Order Protocol: ${config.oneInchLimitOrderProtocol}`);
 
     // Save deployment addresses to config file
     const deploymentConfig = {
         network: "sepolia",
-        htlcAddress: htlcContract.address,
-        oneInchIntegrationAddress: oneInchIntegration.address,
+        htlcAddress: htlcAddress,
+        oneInchIntegrationAddress: oneInchIntegrationAddress,
         oneInchLimitOrderProtocol: config.oneInchLimitOrderProtocol,
         deployedAt: new Date().toISOString(),
-        deployer: wallet.address
+        deployer: deployerAddress
     };
 
     const fs = require('fs');
@@ -64,8 +71,8 @@ async function deployContracts() {
     console.log("\nDeployment configuration saved to deployment.json");
 
     return {
-        htlcAddress: htlcContract.address,
-        oneInchIntegrationAddress: oneInchIntegration.address
+        htlcAddress: htlcAddress,
+        oneInchIntegrationAddress: oneInchIntegrationAddress
     };
 }
 

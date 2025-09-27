@@ -1,0 +1,8 @@
+{
+  "network": "sepolia",
+  "htlcAddress": "0x2eb998Df905eCcaF8991BE77a4903c3765419977",
+  "oneInchIntegrationAddress": "0xc1f293e11AeCd83CE07a8781d9Eb8282bcF7E0FC",
+  "oneInchLimitOrderProtocol": "0x1111111254EEB25477B68fb85Ed929f73A960582",
+  "deployedAt": "2025-09-27T08:30:01.938Z",
+  "deployer": "0x52539eE3B6b1EEbbb1e28AF6b9cB3Adc12A41042"
+}
