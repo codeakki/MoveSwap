@@ -2,7 +2,7 @@
 
 ## 🚀 Overview
 
-MoveSwap is a trustless cross-chain atomic swap protocol enabling secure token exchanges between Ethereum and Sui networks using Hash Time Lock Contracts (HTLCs). The protocol ensures atomic execution - either both sides of the swap complete successfully, or neither does.
+MoveSwap is a comprehensive cross-chain atomic swap protocol enabling secure token exchanges between Base (Ethereum L2) and Sui networks. The protocol combines Hash Time Lock Contracts (HTLCs) with 1inch Limit Order Protocol integration for efficient, trustless cross-chain swaps. The project includes both CLI tools and a modern React frontend for seamless user experience.
 
 ## 🎯 Core Concepts
 
@@ -29,30 +29,39 @@ MoveSwap/
 │   ├── ethereum/
 │   │   └── HTLC.sol           # Ethereum Hash Time Lock Contracts contract
 │   └── sui/
-│       └── sources/
-│           └── htlc.move      # Sui Move Hash Time Lock Contracts contract
+│       ├── sources/
+│       │   └── htlc.move      # Sui Move HTLC contract
+│       ├── Move.toml          # Sui package configuration
+│       └── build/             # Compiled Move bytecode
+├── frontend/                  # React frontend application
+│   ├── src/
+│   │   ├── App.jsx           # Main application component
+│   │   ├── components/       # UI components
+│   │   └── assets/           # Static assets
+│   ├── package.json          # Frontend dependencies
+│   └── vite.config.js        # Vite configuration
+├── test/
+│   ├── atomic_swap_cli.ts    # Interactive CLI for atomic swaps
+│   └── test_cli.js           # CLI test suite
 ├── examples/
-│   ├── eth_sui_swap.ts        # Complete atomic swap implementation
-│   └── create_htcl.ts         # Individual Hash Time Lock Contracts creation utility
-├── config.json               # Contract addresses and configuration
-├── .env.example              # Environment variables template
-└── package.json              # Dependencies and scripts
+│   └── eth_sui_swap.ts       # Complete atomic swap implementation
+├── scripts/
+│   └── deploy.ts             # Contract deployment scripts
+├── config.json               # Multi-network configuration
+├── package.json              # Main project dependencies
+├── hardhat.config.js         # Hardhat configuration
+└── README.md                 # This documentation
 ```
 
-This comprehensive README includes:
+## 🎯 Key Features
 
-1. ✅ **Complete function documentation** for all contracts
-2. ✅ **Detailed environment setup** with example values
-3. ✅ **Step-by-step flow diagrams** and explanations
-4. ✅ **Architecture overview** with escrow concepts
-5. ✅ **Usage examples** and implementation guides
-6. ✅ **Development setup** and testing instructions
-7. ✅ **Security considerations** and best practices
-8. ✅ **Contract deployment** procedures
-9. ✅ **Transaction monitoring** features
-10. ✅ **Project structure** and file organization
-
-Would you like me to add any specific sections or modify any part of this documentation?
+- **Cross-Chain Atomic Swaps**: Secure token exchanges between Base and Sui
+- **1inch Integration**: Efficient DEX integration for Base chain swaps
+- **HTLC Security**: Hash Time Lock Contracts ensure atomic execution
+- **Interactive CLI**: Step-by-step swap execution with progress tracking
+- **Modern Frontend**: React-based UI for user-friendly swap interface
+- **Multi-Network Support**: Mainnet and testnet configurations
+- **Comprehensive Testing**: CLI test suite and validation tools
 
 ## ⚙️ Environment Setup
 
@@ -62,6 +71,7 @@ Would you like me to add any specific sections or modify any part of this docume
 - **npm/yarn**: Package manager
 - **Sui CLI**: For Sui blockchain interaction
 - **Git**: Version control
+- **pnpm**: For frontend dependencies (optional)
 
 ### 2. Installation
 
@@ -70,11 +80,16 @@ Would you like me to add any specific sections or modify any part of this docume
 git clone https://github.com/codeakki/MoveSwap.git
 cd MoveSwap
 
-# Install dependencies
+# Install main dependencies
 npm install
 
+# Install frontend dependencies (optional)
+cd frontend
+npm install
+cd ..
+
 # Copy environment template
-cp .env.example .env
+cp env.example .env
 ```
 
 ### 3. Environment Variables
@@ -82,19 +97,16 @@ cp .env.example .env
 Create a `.env` file with the following variables:
 
 ```env
-# Ethereum Configuration
-ETH_PRIVATE_KEY=your_ethereum_private_key_here
-ETH_RECEIVER_ADDRESS=0x_your_ethereum_address
+# Base Configuration
+BASE_PRIVATE_KEY=your_base_private_key_here
+BASE_RPC_URL=https://base-mainnet.g.alchemy.com/v2/YOUR_KEY
 
 # Sui Configuration  
 SUI_PRIVATE_KEY=your_sui_private_key_here
-SUI_RECEIVER_ADDRESS=0x_your_sui_address
-SUI_NETWORK=testnet
-SUI_PACKAGE_ID=0x_deployed_sui_package_id
+SUI_RPC_URL=https://sui-mainnet-rpc.allthatnode.com
 
-# Network Configuration
-ETH_RPC_URL=https://ethereum-sepolia-rpc.publicnode.com
-SUI_RPC_URL=https://fullnode.testnet.sui.io:443
+# Network Selection
+NETWORK=mainnet  # or base-sepolia for testnet
 
 # Optional: 1inch Integration
 DEV_PORTAL_API_TOKEN=your_1inch_api_key
@@ -105,8 +117,8 @@ MAX_PRIORITY_FEE_PER_GAS=0.0001
 GAS_LIMIT=300000
 
 # Timelock Configuration (in seconds)
-ETH_TIMELOCK_DURATION=7200  # 2 hours
-SUI_TIMELOCK_DURATION=3600  # 1 hour
+BASE_TIMELOCK_DURATION=7200  # 2 hours
+SUI_TIMELOCK_DURATION=3600   # 1 hour
 ```
 
 ## 🔗 Smart Contracts Documentation
@@ -267,8 +279,8 @@ public entry fun refund_htlc(
 
 ```mermaid
 sequenceDiagram
-    participant Alice as Alice (ETH)
-    participant EthHTLC as Ethereum HTLC
+    participant Alice as Alice (Base)
+    participant OneInch as 1inch Limit Order
     participant SuiHTLC as Sui HTLC
     participant Bob as Bob (SUI)
 
@@ -277,17 +289,22 @@ sequenceDiagram
     Alice->>Bob: Share hashlock (not secret)
 
     Note over Alice,Bob: 2. Lock Phase
-    Alice->>EthHTLC: createHTLC(id, Bob, hashlock, timelock, ETH)
+    Alice->>OneInch: createBaseLimitOrder(WETH→USDC, hashlock, timelock)
     Bob->>SuiHTLC: create_htlc(id, Alice, hashlock, timelock, SUI)
 
-    Note over Alice,Bob: 3. Claim Phase (Order matters!)
+    Note over Alice,Bob: 3. Wait for Finalization
+    Alice->>Alice: waitForSuiFinalization()
+    Note over Alice: Sui HTLC transaction finalized
+
+    Note over Alice,Bob: 4. Claim Phase (Order matters!)
     Alice->>SuiHTLC: claim_with_secret(secret)
     Note over SuiHTLC: Secret now revealed on-chain
-    Bob->>EthHTLC: claimHTLC(secret) [using revealed secret]
+    Alice->>OneInch: executeLimitOrder(secret) [using revealed secret]
 
-    Note over Alice,Bob: 4. Result
-    Note over Alice: Alice gets SUI
-    Note over Bob: Bob gets ETH
+    Note over Alice,Bob: 5. Result
+    Note over Alice: Alice gets SUI from Sui HTLC
+    Note over Alice: Alice gets USDC from 1inch swap
+    Note over Bob: Bob gets WETH from 1inch swap
 ```
 
 ### Implementation Example
@@ -295,25 +312,56 @@ sequenceDiagram
 ```typescript
 // examples/eth_sui_swap.ts
 class AtomicSwap {
-    async performETHtoSUISwap(
-        ethAmount: string,
-        suiAmount: string, 
-        ethReceiver: string,
-        suiReceiver: string
+    async performAtomicSwap(
+        fromChain: 'base' | 'sui',
+        fromTokenSymbol: string,
+        toTokenSymbol: string,
+        amount: string,
+        fromAddress: string,
+        toAddress: string
     ): Promise<boolean> {
         // 1. Generate cryptographic materials
-        const { secret, hashlock, htlcId, ethTimelock, suiTimelock } = 
+        const { secret, hashlock, htlcId, baseTimelock, suiTimelock } = 
             this.generateSwapDetails();
 
-        // 2. Create Ethereum HTLC (Alice locks ETH)
-        const ethHtlcResult = await this.createEthereumHTLC(
-            htlcId, ethReceiver, hashlock, ethTimelock, ethAmount
-        );
+        let baseLimitOrder: { order: any, signature: string, orderHash: string } | null = null;
+        let suiHtlcResult: any = null;
 
-        // 3. Create Sui HTLC (Bob locks SUI)
-        const suiHtlcResult = await this.createSuiHTLC(
-            htlcId, suiReceiver, hashlock, suiTimelock, suiAmount
-        );
+        if (fromChain === 'base') {
+            // 2. Create Base 1inch Limit Order (Alice creates order)
+            const orderParams: SwapParams = {
+                fromToken: this.getTokenInfo(fromTokenSymbol),
+                toToken: this.getTokenInfo(toTokenSymbol),
+                amount,
+                fromAddress: this.baseWallet.address,
+                toAddress,
+                secretHash: htlcId,
+                validUntil: baseTimelock
+            };
+            baseLimitOrder = await this.createBaseLimitOrder(orderParams);
+
+            // 3. Create Sui HTLC (Bob locks SUI)
+            suiHtlcResult = await this.createSuiHTLC(
+                htlcId, toAddress, hashlock, suiTimelock, amount
+            );
+        } else {
+            // 3. Create Sui HTLC first (Bob locks SUI)
+            suiHtlcResult = await this.createSuiHTLC(
+                htlcId, fromAddress, hashlock, suiTimelock, amount
+            );
+
+            // 2. Create Base 1inch Limit Order (Alice creates order)
+            const orderParams: SwapParams = {
+                fromToken: this.getTokenInfo(fromTokenSymbol),
+                toToken: this.getTokenInfo(toTokenSymbol),
+                amount,
+                fromAddress,
+                toAddress: this.baseWallet.address,
+                secretHash: htlcId,
+                validUntil: baseTimelock
+            };
+            baseLimitOrder = await this.createBaseLimitOrder(orderParams);
+        }
 
         // 4. Wait for Sui transaction finalization
         await this.suiClient.waitForTransaction({
@@ -325,8 +373,14 @@ class AtomicSwap {
             htlcId, secret, hashlock, suiHtlcResult.digest
         );
 
-        // 6. Claim Ethereum HTLC (Bob uses revealed secret)
-        const ethClaimResult = await this.claimEthereumHTLC(htlcId, secret);
+        // 6. Execute Base 1inch Limit Order (using revealed secret)
+        if (baseLimitOrder) {
+            await this.executeLimitOrder(
+                baseLimitOrder.order, 
+                baseLimitOrder.signature, 
+                secret
+            );
+        }
 
         return true;
     }
@@ -335,40 +389,85 @@ class AtomicSwap {
 
 ## 🛠️ Usage Examples
 
-### Running the Complete Swap
+### 1. Interactive CLI
+
+The project includes a comprehensive CLI for step-by-step atomic swap execution:
 
 ```bash
-# Run the complete ETH to SUI swap example
-npm start
+# Start the interactive CLI
+npx ts-node test/atomic_swap_cli.ts
+
+# Initialize a Base to SUI swap
+init-swap base ETH USDC 0.001 0x_sender_address 0x_receiver_address
+
+# Create Base 1inch Limit Order
+create-base-order
+
+# Create Sui HTLC
+create-sui-htlc
+
+# Wait for Sui finalization
+wait-for-sui-finalization
+
+# Claim Sui HTLC (reveals secret)
+claim-sui-htlc
+
+# Execute Base 1inch Limit Order
+execute-base-order
 ```
 
-### Creating Individual HTLCs
+### 2. Frontend Application
+
+Launch the React frontend for a user-friendly interface:
 
 ```bash
-# Create a Sui HTLC only
-npm run create-sui-htlc
+# Start the frontend development server
+cd frontend
+npm run dev
 
-# Set environment variables for individual creation
-export ORDER_ID="swap_123"
-export SUI_PRIVATE_KEY="your_private_key"
-export SUI_RECEIVER_ADDRESS="0x_receiver_address"
-export SUI_PACKAGE_ID="0x_deployed_package_id"
+# Build for production
+npm run build
 ```
 
-### Custom Implementation
+### 3. Programmatic Usage
 
 ```typescript
 import { AtomicSwap } from './examples/eth_sui_swap';
 
 const swap = new AtomicSwap();
 
-// Execute swap with custom parameters
-await swap.performETHtoSUISwap(
-    "0.001",                    // ETH amount
-    "1.0",                      // SUI amount  
-    "0x_eth_receiver_address",  // ETH recipient
+// Execute Base to SUI swap
+await swap.performAtomicSwap(
+    'base',                     // from chain
+    'ETH',                      // from token (mapped to WETH)
+    'USDC',                     // to token
+    "0.001",                    // amount
+    "0x_base_sender_address",   // Base sender
     "0x_sui_receiver_address"   // SUI recipient
 );
+
+// Execute SUI to Base swap
+await swap.performAtomicSwap(
+    'sui',                      // from chain
+    'ETH',                      // from token (SUI amount)
+    'USDC',                     // to token on Base
+    "0.00001",                  // amount
+    "0x_sui_sender_address",    // SUI sender
+    "0x_base_receiver_address"  // Base recipient
+);
+```
+
+### 4. Testing
+
+```bash
+# Run CLI tests
+node test/test_cli.js
+
+# Run Hardhat tests
+npm run test:hardhat
+
+# Run all tests
+npm test
 ```
 
 ## 🔧 Development
@@ -410,29 +509,79 @@ sui client publish --gas-budget 100000000
 
 ### Configuration
 
-Update `config.json` with deployed contract addresses:
+The project uses a comprehensive `config.json` for multi-network support:
 
 ```json
 {
-    "ethereum": {
-        "rpc": "https://eth-sepolia.g.alchemy.com/v2/YOUR-KEY",
-        "htlcAddress": "0x_deployed_ethereum_htlc_address",
-        "privateKey": "YOUR_ETHEREUM_PRIVATE_KEY_HERE"
+    "base": {
+        "rpc": "https://base-mainnet.g.alchemy.com/v2/YOUR_KEY",
+        "htlcContract": "0x_deployed_htlc_address",
+        "limitOrderProtocol": "0x111111125421ca6dc452d289314280a0f8842a65",
+        "weth": "0x4200000000000000000000000000000000000006",
+        "usdc": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "privateKey": "YOUR_BASE_PRIVATE_KEY",
+        "chainId": 8453
     },
     "sui": {
-        "rpc": "https://fullnode.testnet.sui.io:443",
         "packageId": "0x_deployed_sui_package_id",
-        "privateKey": "YOUR_SUI_PRIVATE_KEY_HERE"
+        "privateKey": "YOUR_SUI_PRIVATE_KEY"
+    },
+    "tokens": {
+        "ETH": "0x0000000000000000000000000000000000000000",
+        "WETH": "0x4200000000000000000000000000000000000006",
+        "USDC": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+    },
+    "networks": {
+        "mainnet": { /* mainnet configuration */ },
+        "base-sepolia": { /* testnet configuration */ }
     }
 }
+```
+
+## 🎨 Frontend Application
+
+The project includes a modern React frontend built with Vite and Tailwind CSS:
+
+### Features
+- **Interactive Swap Interface**: User-friendly token swap interface
+- **Real-time Progress Tracking**: Visual progress indicators for swap steps
+- **Multi-Chain Support**: Support for Base and Sui networks
+- **Responsive Design**: Mobile-friendly interface
+- **Modern UI Components**: Built with Radix UI and Tailwind CSS
+
+### Frontend Structure
+```
+frontend/
+├── src/
+│   ├── App.jsx              # Main application component
+│   ├── components/          # Reusable UI components
+│   │   └── ui/             # Base UI components (Button, Card, etc.)
+│   ├── hooks/              # Custom React hooks
+│   ├── lib/                # Utility functions
+│   └── assets/             # Static assets
+├── package.json            # Frontend dependencies
+└── vite.config.js          # Vite configuration
+```
+
+### Development Commands
+```bash
+# Start development server
+cd frontend
+npm run dev
+
+# Build for production
+npm run build
+
+# Preview production build
+npm run preview
 ```
 
 ## 🛡️ Security Considerations
 
 ### Timelock Strategy
-- **Ethereum timelock**: Longer (2 hours) - gives time for Sui claim
+- **Base timelock**: Longer (2 hours) - gives time for Sui claim
 - **Sui timelock**: Shorter (1 hour) - forces Alice to claim first
-- **Critical**: Sui must be claimed before Ethereum to reveal secret
+- **Critical**: Sui must be claimed before Base to reveal secret
 
 ### Best Practices
 1. **Test with small amounts** first
@@ -442,20 +591,21 @@ Update `config.json` with deployed contract addresses:
 5. **Implement retry mechanisms** for failed transactions
 
 ### Common Pitfalls
-- **Timelock ordering**: Sui timelock must be shorter than Ethereum
+- **Timelock ordering**: Sui timelock must be shorter than Base
 - **Gas estimation**: Set explicit gas limits for reliable execution
 - **Secret management**: Never share secrets before both HTLCs are created
 - **Network delays**: Account for block confirmation times
+- **1inch Integration**: Ensure proper order validation and gas estimation
 
 ## 📊 Transaction Monitoring
 
 The implementation includes comprehensive logging with:
 - 🔗 Transaction hashes for all operations
-- 🔍 Block explorer links (Etherscan & Sui Explorer)
+- 🔍 Block explorer links (BaseScan & Sui Explorer)
 - ⛽ Gas usage tracking
 - 💰 Amount and balance verification
 - 🎯 Step-by-step progress indicators
-
+- 🔄 CLI progress tracking with detailed logs
 ## 🤝 Contributing
 
 1. Fork the repository
@@ -470,14 +620,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🙏 Acknowledgments
 
-- [1inch Protocol](https://1inch.io/) for inspiration and cross-chain protocols
+- [1inch Protocol](https://1inch.io/) for Limit Order Protocol and DEX integration
 - [Sui Foundation](https://sui.io/) for Move language and blockchain infrastructure
-- [Ethereum Foundation](https://ethereum.org/) for smart contract capabilities
+- [Base](https://base.org/) for Ethereum L2 infrastructure
 - [OpenZeppelin](https://openzeppelin.com/) for secure contract libraries
+- [Radix UI](https://www.radix-ui.com/) for accessible UI components
 
-## 📞 Support
 
-For questions, issues, or contributions:
-- Create an [issue](https://github.com/codeakki/MoveSwap/issues)
-- Join our [Discord](https://discord.gg/moveswap) (coming soon)
-- Follow [@MoveSwap](https://twitter.com/moveswap) (coming soon)

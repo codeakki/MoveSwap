@@ -11,14 +11,14 @@ import { AxiosProviderConnector } from '@1inch/limit-order-sdk/axios';
 import axios from 'axios';
 import { Wallet, Contract } from 'ethers';
 import { getLimitOrderV4Domain } from "@1inch/limit-order-sdk";
+import * as readline from 'readline';
 
 dotenv.config();
-
 
 // Load configuration from config.json
 const fs = require('fs');
 const path = require('path');
-const configPath = path.join(__dirname, '..', 'config.json');
+const configPath = path.join(__dirname, 'config.json');
 const configData = JSON.parse(fs.readFileSync(configPath, 'utf8'));
 
 // Debug: Log config structure
@@ -114,7 +114,24 @@ interface HTLCFields {
     created_at: string;
 }
 
-class AtomicSwap {
+interface SwapState {
+    secret?: string;
+    hashlock?: string;
+    htlcId?: string;
+    baseTimelock?: number;
+    suiTimelock?: number;
+    baseLimitOrder?: { order: any, signature: string, orderHash: string };
+    suiHtlcResult?: any;
+    suiClaimResult?: any;
+    fromChain?: 'base' | 'sui';
+    fromTokenSymbol?: string;
+    toTokenSymbol?: string;
+    amount?: string;
+    fromAddress?: string;
+    toAddress?: string;
+}
+
+class AtomicSwapCLI {
     private baseProvider: any;
     private baseWallet: ethers.Wallet;
     private limitOrderContract: ethers.Contract;
@@ -122,9 +139,12 @@ class AtomicSwap {
     private suiClient: SuiClient;
     private suiKeypair: Ed25519Keypair;
     private network: string;
+    private swapState: SwapState;
+    private rl: readline.Interface;
 
     constructor() {
         this.network = config.network;
+        this.swapState = {};
 
         // Initialize Base
         this.baseProvider = new ethers.JsonRpcProvider(config.baseRPC) as any;
@@ -143,15 +163,21 @@ class AtomicSwap {
             config.suiPrivateKey.slice(0, -2) : config.suiPrivateKey;
         this.suiKeypair = Ed25519Keypair.fromSecretKey(Buffer.from(privateKey, 'hex'));
         
+        // Initialize readline interface
+        this.rl = readline.createInterface({
+            input: process.stdin,
+            output: process.stdout
+        });
+        
         // Log addresses
         const suiAddress = this.suiKeypair.getPublicKey().toSuiAddress();
-        console.log("\n🚀 Base-SUI Atomic Swap Initialized");
-        console.log("===============================");
+        console.log("\n🚀 Base-SUI Atomic Swap CLI Initialized");
+        console.log("=====================================");
         console.log(`🌐 Network: ${this.network}`);
         console.log(`📍 Base Address: ${this.baseWallet.address}`);
         console.log(`📍 1inch Limit Order: ${this.loVerifyingContract}`);
         console.log(`📍 SUI Address: ${suiAddress}`);
-        console.log("===============================\n");
+        console.log("=====================================\n");
     }
 
     getSuiAddress(): string {
@@ -276,10 +302,6 @@ class AtomicSwap {
         return { order, signature, orderHash };
     }
 
-    // Removed old 1inch implementation methods - using SDK instead
-
-    // HTLC functionality removed - using 1inch Limit Order Protocol instead
-
     async createSuiHTLC(htlcId: string, receiverAddress: string, hashlock: string, timelock: number, amount: string) {
         // Get gas coins first
         const senderAddress = this.suiKeypair.getPublicKey().toSuiAddress();
@@ -403,99 +425,31 @@ class AtomicSwap {
         return result;
     }
 
-    // claimBaseHTLC removed - using 1inch Limit Order Protocol instead
-
     async executeLimitOrder(order: LimitOrder, signature: string, secret: string): Promise<void> {
         console.log("🔓 Executing 1inch Limit Order with secret...");
         console.log(`🔐 Secret: ${secret}`);
         console.log(`📋 Order Hash: ${order.getOrderHash(8453)}`);
 
-        const maxRetries = 3;
-        let attempt = 0;
-
-        while (attempt < maxRetries) {
-            try {
-                attempt++;
-                console.log(`🔄 Attempt ${attempt}/${maxRetries}`);
-                
-                const chainId = 8453;
-                
-                // Prepare taker allowances and balances
-                const typed = order.getTypedData(chainId);
-                const takerAsset: string = String(typed.message.takerAsset);
-                const makingAmount: bigint = order.makingAmount;
-
-                if (takerAsset.toLowerCase() === ethers.ZeroAddress.toLowerCase()) {
-                    throw new Error('takerAsset is invalid (ZeroAddress). Use ERC20 like USDC/WETH.');
-                }
-                
-                // Ensure allowance is set for protocol
-                await this.ensureAllowance(takerAsset, this.baseWallet.address, this.loVerifyingContract, ethers.MaxUint256);
-
-                // Build takingAmount on-chain and fill directly (no REST dependency)
-                const orderTyped = order.getTypedData(chainId);
-                const orderStruct = {
-                    salt: orderTyped.message.salt,
-                    makerAsset: orderTyped.message.makerAsset,
-                    takerAsset: orderTyped.message.takerAsset,
-                    maker: orderTyped.message.maker,
-                    receiver: orderTyped.message.receiver,
-                    allowedSender: ethers.ZeroAddress,
-                    makingAmount: orderTyped.message.makingAmount,
-                    takingAmount: orderTyped.message.takingAmount,
-                    predicate: '0x',
-                    permit: '0x',
-                    interaction: '0x'
-                };
-                
-                console.log('🧾 Getting taking amount from contract...');
-                const derivedTaking: bigint = await this.limitOrderContract.getTakingAmount(orderStruct, makingAmount);
-                console.log(`💰 Derived taking amount: ${derivedTaking.toString()}`);
-
-                console.log('🧾 Filling order on-chain...');
-                const tx = await this.limitOrderContract.fillOrder(
-                    orderStruct,
-                    signature,
-                    makingAmount,
-                    derivedTaking,
-                    { gasLimit: 1000000 } // Increased gas limit
-                );
-
-                console.log(`⏳ Transaction pending: ${tx.hash}`);
-                const receipt = await tx.wait();
-
-                console.log("✅ 1inch Limit Order executed successfully!");
-                console.log(`🔗 Transaction Hash: ${receipt.hash}`);
-                console.log(`🔍 Base Explorer: https://basescan.org/tx/${receipt.hash}`);
-                console.log(`⛽ Gas Used: ${receipt.gasUsed?.toString?.() || receipt.gasUsed}`);
-                console.log("💱 Token swap completed via 1inch Limit Order Protocol");
-                return; // Success, exit the retry loop
-
-            } catch (error) {
-                console.error(`❌ Error executing 1inch limit order (attempt ${attempt}):`, error);
-                
-                if (attempt === maxRetries) {
-                    console.log("🔄 All retries exhausted, trying alternative execution method...");
-                    await this.executeLimitOrderAlternative(order, signature, secret);
-                    return;
-                }
-                
-                // Wait before retry
-                const waitTime = attempt * 2000; // 2s, 4s, 6s
-                console.log(`⏳ Waiting ${waitTime}ms before retry...`);
-                await new Promise(resolve => setTimeout(resolve, waitTime));
-            }
-        }
-    }
-
-    async executeLimitOrderAlternative(order: LimitOrder, signature: string, secret: string): Promise<void> {
-        console.log("🔄 Using alternative execution method...");
-        
         try {
             const chainId = 8453;
+            const apiKey = process.env.INCH_API_KEY || process.env.INCH_API_TOKEN || process.env.ONEINCH_API_KEY || process.env.DEV_PORTAL_API_TOKEN;
+            if (!apiKey) {
+                throw new Error('Missing INCH_API_KEY in env for 1inch API.');
+            }
+
+            // Prepare taker allowances and balances
+            const typed = order.getTypedData(chainId);
+            const takerAsset: string = String(typed.message.takerAsset);
+            const makingAmount: bigint = order.makingAmount;
+
+            if (takerAsset.toLowerCase() === ethers.ZeroAddress.toLowerCase()) {
+                throw new Error('takerAsset is invalid (ZeroAddress). Use ERC20 like USDC/WETH.');
+            }
+            // Ensure allowance is set for protocol
+            await this.ensureAllowance(takerAsset, this.baseWallet.address, this.loVerifyingContract, ethers.MaxUint256);
+
+            // Build takingAmount on-chain and fill directly (no REST dependency)
             const orderTyped = order.getTypedData(chainId);
-            
-            // Create a simpler order structure for direct execution
             const orderStruct = {
                 salt: orderTyped.message.salt,
                 makerAsset: orderTyped.message.makerAsset,
@@ -509,46 +463,28 @@ class AtomicSwap {
                 permit: '0x',
                 interaction: '0x'
             };
+            const derivedTaking: bigint = await this.limitOrderContract.getTakingAmount(orderStruct, makingAmount);
 
-            // Try with different gas settings
-            const gasOptions = [
-                { gasLimit: 2000000 },
-                { gasLimit: 1500000 },
-                { gasLimit: 1000000 },
-                { gasLimit: 800000 }
-            ];
+            console.log('🧾 Filling order on-chain...');
+            const tx = await this.limitOrderContract.fillOrder(
+                orderStruct,
+                signature,
+                makingAmount,
+                derivedTaking,
+                { gasLimit: 500000 }
+            );
 
-            for (const gasOption of gasOptions) {
-                try {
-                    console.log(`⏳ Trying with gas limit: ${gasOption.gasLimit}`);
-                    
-                    const tx = await this.limitOrderContract.fillOrder(
-                        orderStruct,
-                        signature,
-                        orderTyped.message.makingAmount,
-                        orderTyped.message.takingAmount,
-                        gasOption
-                    );
+            console.log(`⏳ Transaction pending: ${tx.hash}`);
+            const receipt = await tx.wait();
 
-                    console.log(`⏳ Transaction pending: ${tx.hash}`);
-                    const receipt = await tx.wait();
+            console.log("✅ 1inch Limit Order executed successfully!");
+            console.log(`🔗 Transaction Hash: ${receipt.hash}`);
+            console.log(`🔍 Base Explorer: https://basescan.org/tx/${receipt.hash}`);
+            console.log(`⛽ Gas Used: ${receipt.gasUsed?.toString?.() || receipt.gasUsed}`);
+            console.log("💱 Token swap completed via 1inch Limit Order Protocol");
 
-                    console.log("✅ Alternative execution successful!");
-                    console.log(`🔗 Transaction Hash: ${receipt.hash}`);
-                    console.log(`🔍 Base Explorer: https://basescan.org/tx/${receipt.hash}`);
-                    console.log(`⛽ Gas Used: ${receipt.gasUsed?.toString?.() || receipt.gasUsed}`);
-                    return;
-                    
-                } catch (gasError) {
-                    console.log(`❌ Gas limit ${gasOption.gasLimit} failed: ${gasError.message}`);
-                    if (gasOption === gasOptions[gasOptions.length - 1]) {
-                        throw gasError;
-                    }
-                }
-            }
-            
         } catch (error) {
-            console.error("❌ Alternative execution also failed:", error);
+            console.error("❌ Error executing 1inch limit order:", error);
             throw error;
         }
     }
@@ -677,175 +613,307 @@ class AtomicSwap {
         return result;
     }
 
-    async performAtomicSwap(
-        fromChain: 'base' | 'sui',
-        fromTokenSymbol: string,
-        toTokenSymbol: string,
-        amount: string,
-        fromAddress: string,
-        toAddress: string
-    ): Promise<boolean> {
+    // CLI Command Methods
+    async initSwap(fromChain: 'base' | 'sui', fromTokenSymbol: string, toTokenSymbol: string, amount: string, fromAddress: string, toAddress: string) {
+        console.log(`\n🚀 Initializing ${fromChain.toUpperCase()} to ${fromChain === 'base' ? 'SUI' : 'BASE'} Atomic Swap...`);
+        console.log("=====================================");
+        console.log(`🔄 From: ${fromTokenSymbol} on ${fromChain}`);
+        console.log(`🔄 To: ${toTokenSymbol} on ${fromChain === 'base' ? 'sui' : 'base'}`);
+        console.log(`💰 Amount: ${amount}`);
+        console.log(`👤 From Address: ${fromAddress}`);
+        console.log(`👤 To Address: ${toAddress}`);
+        console.log("=====================================\n");
+        
+        // Generate swap details
+        const { secret, hashlock, htlcId, baseTimelock, suiTimelock } = this.generateSwapDetails();
+        console.log("🎲 Generated swap details:");
+        console.log(`📝 HTLC ID: ${htlcId}`);
+        console.log(`🔐 Hashlock: ${hashlock}`);
+        console.log(`🔐 Secret: ${secret}`);
+        console.log(`⏰ Base Timelock: ${new Date(baseTimelock * 1000).toISOString()}`);
+        console.log(`⏰ SUI Timelock: ${new Date(suiTimelock * 1000).toISOString()}\n`);
+
+        // Store state
+        this.swapState = {
+            secret,
+            hashlock,
+            htlcId,
+            baseTimelock,
+            suiTimelock,
+            fromChain,
+            fromTokenSymbol,
+            toTokenSymbol,
+            amount,
+            fromAddress,
+            toAddress
+        };
+
+        console.log("✅ Swap initialized successfully!");
+        console.log("📋 Next command: create-base-order or create-sui-htlc");
+        return this.swapState;
+    }
+
+    async createBaseOrder() {
+        if (!this.swapState.fromChain || !this.swapState.fromTokenSymbol || !this.swapState.toTokenSymbol || !this.swapState.amount || !this.swapState.fromAddress || !this.swapState.toAddress || !this.swapState.htlcId || !this.swapState.baseTimelock) {
+            throw new Error("❌ Swap not initialized. Run 'init-swap' first.");
+        }
+
+        console.log("📋 Creating Base 1inch Limit Order...");
+        
+        const orderParams: SwapParams = {
+            fromToken: this.getTokenInfo(this.swapState.fromTokenSymbol),
+            toToken: this.getTokenInfo(this.swapState.toTokenSymbol),
+            amount: this.swapState.amount,
+            fromAddress: this.swapState.fromAddress,
+            toAddress: this.swapState.toAddress,
+            secretHash: this.swapState.htlcId,
+            validUntil: this.swapState.baseTimelock
+        };
+
+        const baseLimitOrder = await this.createBaseLimitOrder(orderParams);
+        this.swapState.baseLimitOrder = baseLimitOrder;
+
+        console.log("✅ Base Limit Order created successfully!");
+        console.log(`📋 Order Hash: ${baseLimitOrder.orderHash}`);
+        console.log("📋 Next command: create-sui-htlc");
+        return baseLimitOrder;
+    }
+
+    async createSuiHTLCStep() {
+        if (!this.swapState.htlcId || !this.swapState.hashlock || !this.swapState.suiTimelock || !this.swapState.amount || !this.swapState.toAddress) {
+            throw new Error("❌ Swap not initialized. Run 'init-swap' first.");
+        }
+
+        console.log("📋 Creating Sui HTLC...");
+        
+        const suiHtlcResult = await this.createSuiHTLC(
+            this.swapState.htlcId,
+            this.swapState.toAddress,
+            this.swapState.hashlock,
+            this.swapState.suiTimelock,
+            this.swapState.amount
+        );
+
+        this.swapState.suiHtlcResult = suiHtlcResult;
+
+        console.log("✅ Sui HTLC created successfully!");
+        console.log(`🔗 Transaction Hash: ${suiHtlcResult.digest}`);
+        console.log("📋 Next command: wait-for-sui-finalization");
+        return suiHtlcResult;
+    }
+
+    async waitForSuiFinalization() {
+        if (!this.swapState.suiHtlcResult) {
+            throw new Error("❌ Sui HTLC not created. Run 'create-sui-htlc' first.");
+        }
+
+        console.log("⏳ Waiting for Sui HTLC transaction to be finalized...");
+        await this.suiClient.waitForTransaction({
+            digest: this.swapState.suiHtlcResult.digest
+        });
+        console.log("✅ Sui HTLC transaction finalized!");
+        console.log("📋 Next command: claim-sui-htlc");
+    }
+
+    async claimSuiHTLCStep() {
+        if (!this.swapState.htlcId || !this.swapState.secret || !this.swapState.hashlock || !this.swapState.suiHtlcResult) {
+            throw new Error("❌ Required state missing. Make sure to run init-swap, create-sui-htlc, and wait-for-sui-finalization first.");
+        }
+
+        console.log("📋 Claiming Sui HTLC (revealing secret)...");
+        
+        const suiClaimResult = await this.claimSuiHTLC(
+            this.swapState.htlcId,
+            this.swapState.secret,
+            this.swapState.hashlock,
+            this.swapState.suiHtlcResult.digest
+        );
+
+        this.swapState.suiClaimResult = suiClaimResult;
+
+        console.log("✅ Sui HTLC claimed successfully!");
+        console.log(`🔗 Transaction Hash: ${suiClaimResult.digest}`);
+        console.log("📋 Next command: execute-base-order");
+        return suiClaimResult;
+    }
+
+    async executeBaseOrder() {
+        if (!this.swapState.baseLimitOrder || !this.swapState.secret) {
+            throw new Error("❌ Base Limit Order not created or secret not available. Make sure to run create-base-order and claim-sui-htlc first.");
+        }
+
+        console.log("📋 Executing Base 1inch Limit Order (using revealed secret)...");
+        
+        await this.executeLimitOrder(
+            this.swapState.baseLimitOrder.order,
+            this.swapState.baseLimitOrder.signature,
+            this.swapState.secret
+        );
+
+        console.log("✅ Base Limit Order executed successfully!");
+        console.log("🎉 ATOMIC SWAP COMPLETED SUCCESSFULLY! 🎉");
+        console.log("==========================================");
+        console.log("📊 Transaction Summary:");
+        if (this.swapState.fromChain === 'base') {
+            console.log(`🔗 Base 1inch Limit Order Created: ${this.swapState.baseLimitOrder.orderHash}`);
+            console.log(`🔗 SUI HTLC Created: ${this.swapState.suiHtlcResult?.digest}`);
+            console.log(`🔗 SUI HTLC Claimed: ${this.swapState.suiClaimResult?.digest}`);
+            console.log("💱 Base 1inch Limit Order Executed");
+        } else {
+            console.log(`🔗 SUI HTLC Created: ${this.swapState.suiHtlcResult?.digest}`);
+            console.log(`🔗 SUI HTLC Claimed: ${this.swapState.suiClaimResult?.digest}`);
+            console.log(`🔗 Base 1inch Limit Order Created: ${this.swapState.baseLimitOrder.orderHash}`);
+            console.log("💱 Base 1inch Limit Order Executed");
+        }
+        console.log("==========================================");
+        console.log("🔗 Key Coordination Points:");
+        console.log(`📝 Secret Hash: ${this.swapState.hashlock}`);
+        console.log(`🔐 Revealed Secret: ${this.swapState.secret}`);
+        console.log("💱 Cross-chain coordination successful!");
+        console.log("==========================================");
+    }
+
+    async showState() {
+        console.log("\n📊 Current Swap State:");
+        console.log("=====================");
+        console.log(`🔗 From Chain: ${this.swapState.fromChain || 'Not set'}`);
+        console.log(`🪙 From Token: ${this.swapState.fromTokenSymbol || 'Not set'}`);
+        console.log(`🪙 To Token: ${this.swapState.toTokenSymbol || 'Not set'}`);
+        console.log(`💰 Amount: ${this.swapState.amount || 'Not set'}`);
+        console.log(`👤 From Address: ${this.swapState.fromAddress || 'Not set'}`);
+        console.log(`👤 To Address: ${this.swapState.toAddress || 'Not set'}`);
+        console.log(`📝 HTLC ID: ${this.swapState.htlcId || 'Not set'}`);
+        console.log(`🔐 Secret: ${this.swapState.secret || 'Not set'}`);
+        console.log(`🔐 Hashlock: ${this.swapState.hashlock || 'Not set'}`);
+        console.log(`⏰ Base Timelock: ${this.swapState.baseTimelock ? new Date(this.swapState.baseTimelock * 1000).toISOString() : 'Not set'}`);
+        console.log(`⏰ SUI Timelock: ${this.swapState.suiTimelock ? new Date(this.swapState.suiTimelock * 1000).toISOString() : 'Not set'}`);
+        console.log(`📋 Base Order Created: ${this.swapState.baseLimitOrder ? 'Yes' : 'No'}`);
+        console.log(`🔗 SUI HTLC Created: ${this.swapState.suiHtlcResult ? 'Yes' : 'No'}`);
+        console.log(`🔓 SUI HTLC Claimed: ${this.swapState.suiClaimResult ? 'Yes' : 'No'}`);
+        console.log("=====================\n");
+    }
+
+    async showHelp() {
+        console.log("\n🆘 Available Commands:");
+        console.log("=====================");
+        console.log("init-swap <fromChain> <fromToken> <toToken> <amount> <fromAddress> <toAddress>");
+        console.log("  - Initialize a new atomic swap");
+        console.log("  - fromChain: 'base' or 'sui'");
+        console.log("  - fromToken/toToken: 'ETH', 'USDC', etc.");
+        console.log("  - amount: amount to swap (e.g., '0.001')");
+        console.log("  - fromAddress/toAddress: wallet addresses");
+        console.log("");
+        console.log("create-base-order");
+        console.log("  - Create 1inch Limit Order on Base");
+        console.log("");
+        console.log("create-sui-htlc");
+        console.log("  - Create HTLC on Sui blockchain");
+        console.log("");
+        console.log("wait-for-sui-finalization");
+        console.log("  - Wait for Sui HTLC transaction to finalize");
+        console.log("");
+        console.log("claim-sui-htlc");
+        console.log("  - Claim Sui HTLC (reveals secret)");
+        console.log("");
+        console.log("execute-base-order");
+        console.log("  - Execute Base Limit Order with revealed secret");
+        console.log("");
+        console.log("show-state");
+        console.log("  - Show current swap state");
+        console.log("");
+        console.log("show-help");
+        console.log("  - Show this help message");
+        console.log("");
+        console.log("exit");
+        console.log("  - Exit the CLI");
+        console.log("=====================\n");
+    }
+
+    async processCommand(input: string) {
+        const parts = input.trim().split(' ');
+        const command = parts[0];
+
         try {
-            console.log(`\n🚀 Starting ${fromChain.toUpperCase()} to ${fromChain === 'base' ? 'SUI' : 'BASE'} Atomic Swap...`);
-            console.log("=====================================");
-            console.log(`🔄 From: ${fromTokenSymbol} on ${fromChain}`);
-            console.log(`🔄 To: ${toTokenSymbol} on ${fromChain === 'base' ? 'sui' : 'base'}`);
-            console.log(`💰 Amount: ${amount}`);
-            console.log(`👤 From Address: ${fromAddress}`);
-            console.log(`👤 To Address: ${toAddress}`);
-            console.log("=====================================\n");
-            
-            // Generate swap details
-            const { secret, hashlock, htlcId, baseTimelock, suiTimelock } = this.generateSwapDetails();
-            console.log("🎲 Generated swap details:");
-            console.log(`📝 HTLC ID: ${htlcId}`);
-            console.log(`🔐 Hashlock: ${hashlock}`);
-            console.log(`🔐 Secret: ${secret}`);
-            console.log(`⏰ Base Timelock: ${new Date(baseTimelock * 1000).toISOString()}`);
-            console.log(`⏰ SUI Timelock: ${new Date(suiTimelock * 1000).toISOString()}\n`);
+            switch (command) {
+                case 'init-swap':
+                    if (parts.length !== 7) {
+                        console.log("❌ Usage: init-swap <fromChain> <fromToken> <toToken> <amount> <fromAddress> <toAddress>");
+                        return;
+                    }
+                    await this.initSwap(
+                        parts[1] as 'base' | 'sui',
+                        parts[2],
+                        parts[3],
+                        parts[4],
+                        parts[5],
+                        parts[6]
+                    );
+                    break;
 
-            let baseLimitOrder: { order: any, signature: string, orderHash: string } | null = null;
-            let suiHtlcResult: any = null;
+                case 'create-base-order':
+                    await this.createBaseOrder();
+                    break;
 
-            if (fromChain === 'base') {
-                // Step 1: Create Base 1inch Limit Order
-                console.log("📋 Step 1: Creating Base 1inch Limit Order...");
-                const orderParams: SwapParams = {
-                    fromToken: this.getTokenInfo(fromTokenSymbol),
-                    toToken: this.getTokenInfo(toTokenSymbol),
-                    amount,
-                    fromAddress: this.baseWallet.address,
-                    toAddress,
-                    secretHash: htlcId,
-                    validUntil: baseTimelock
-                };
-                baseLimitOrder = await this.createBaseLimitOrder(orderParams);
+                case 'create-sui-htlc':
+                    await this.createSuiHTLCStep();
+                    break;
 
-            // Step 2: Create Sui HTLC
-            console.log("\n📋 Step 2: Creating Sui HTLC...");
-                suiHtlcResult = await this.createSuiHTLC(
-                    htlcId,
-                    toAddress,
-                    hashlock,
-                    suiTimelock,
-                    amount
-                );
-            } else {
-                // Step 1: Create Sui HTLC
-                console.log("📋 Step 1: Creating Sui HTLC...");
-                suiHtlcResult = await this.createSuiHTLC(
-                htlcId,
-                    fromAddress,
-                hashlock,
-                suiTimelock,
-                    amount
-                );
+                case 'wait-for-sui-finalization':
+                    await this.waitForSuiFinalization();
+                    break;
 
-                // Step 2: Create Base 1inch Limit Order
-                console.log("\n📋 Step 2: Creating Base 1inch Limit Order...");
-                const orderParams2: SwapParams = {
-                    fromToken: this.getTokenInfo(fromTokenSymbol),
-                    toToken: this.getTokenInfo(toTokenSymbol),
-                    amount,
-                    fromAddress,
-                    toAddress: this.baseWallet.address,
-                    secretHash: htlcId,
-                    validUntil: baseTimelock
-                };
-                baseLimitOrder = await this.createBaseLimitOrder(orderParams2);
+                case 'claim-sui-htlc':
+                    await this.claimSuiHTLCStep();
+                    break;
+
+                case 'execute-base-order':
+                    await this.executeBaseOrder();
+                    break;
+
+                case 'show-state':
+                    await this.showState();
+                    break;
+
+                case 'show-help':
+                    await this.showHelp();
+                    break;
+
+                case 'exit':
+                    console.log("👋 Goodbye!");
+                    this.rl.close();
+                    process.exit(0);
+                    break;
+
+                default:
+                    console.log(`❌ Unknown command: ${command}`);
+                    console.log("Type 'show-help' for available commands.");
             }
-
-            // Wait for the HTLC transaction to be finalized
-            console.log("⏳ Waiting for Sui HTLC transaction to be finalized...");
-            await this.suiClient.waitForTransaction({
-                digest: suiHtlcResult.digest
-            });
-            console.log("✅ Sui HTLC transaction finalized!");
-
-            // Step 3: Claim Sui HTLC (reveals secret)
-            console.log("\n📋 Step 3: Claiming Sui HTLC (revealing secret)...");
-            const suiClaimResult = await this.claimSuiHTLC(htlcId, secret, hashlock, suiHtlcResult.digest);
-
-            // Step 4: Execute Base 1inch Limit Order (using revealed secret)
-            console.log("\n📋 Step 4: Executing Base 1inch Limit Order (using revealed secret)...");
-            if (baseLimitOrder) {
-                await this.executeLimitOrder(baseLimitOrder.order, baseLimitOrder.signature, secret);
-            }
-
-            console.log("\n🎉 ATOMIC SWAP COMPLETED SUCCESSFULLY! 🎉");
-            console.log("==========================================");
-            console.log("📊 Transaction Summary:");
-            if (fromChain === 'base') {
-                console.log(`🔗 Base 1inch Limit Order Created: ${baseLimitOrder?.orderHash}`);
-                console.log(`🔗 SUI HTLC Created: ${suiHtlcResult.digest}`);
-                console.log(`🔗 SUI HTLC Claimed: ${suiClaimResult.digest}`);
-                console.log("💱 Base 1inch Limit Order Executed");
-            } else {
-            console.log(`🔗 SUI HTLC Created: ${suiHtlcResult.digest}`);
-            console.log(`🔗 SUI HTLC Claimed: ${suiClaimResult.digest}`);
-                console.log(`🔗 Base 1inch Limit Order Created: ${baseLimitOrder?.orderHash}`);
-                console.log("💱 Base 1inch Limit Order Executed");
-            }
-            console.log("==========================================");
-            console.log("🔗 Key Coordination Points:");
-            console.log(`📝 Secret Hash: ${hashlock}`);
-            console.log(`🔐 Revealed Secret: ${secret}`);
-            console.log("💱 Cross-chain coordination successful!");
-            console.log("==========================================");
-            return true;
-
         } catch (error) {
-            console.error("❌ Error during swap:", error);
-            throw error;
+            console.error("❌ Error:", error.message);
         }
     }
-}
 
-// Example usage
-async function runExample() {
-    console.log("🚀 Starting Base-SUI Cross-Chain Atomic Swap Example...");
-    const swap = new AtomicSwap();
-    
-    try {
-        // Get the addresses to use for testing
-        const suiSenderAddress = swap.getSuiAddress();
-        const baseSenderAddress = swap['baseWallet'].address;
-        console.log(`📍 Using Base address: ${baseSenderAddress}`);
-        console.log(`📍 Using SUI address: ${suiSenderAddress}`);
+    async startCLI() {
+        console.log("\n🚀 Base-SUI Atomic Swap CLI Started");
+        console.log("===================================");
+        console.log("Type 'show-help' for available commands");
+        console.log("Type 'exit' to quit");
+        console.log("===================================\n");
 
-        // Example 1: Base to SUI swap (Base → SUI via HTLC)
-        console.log("\n🔄 Example 1: Base to SUI Swap");
-        console.log("==============================");
-        await swap.performAtomicSwap(
-            'base',        // from chain
-            'ETH',         // from token (mapped to WETH on Base)
-            'USDC',        // to token on Base (ensure different asset)
-            "0.000001",    // amount
-            baseSenderAddress, // from address
-            suiSenderAddress   // to address
-        );
+        this.rl.on('line', async (input) => {
+            await this.processCommand(input);
+            this.rl.prompt();
+        });
 
-        // Example 2: SUI to Base swap (SUI → Base via HTLC coordination)
-        console.log("\n\n🔄 Example 2: SUI to Base Swap");
-        console.log("==============================");
-        await swap.performAtomicSwap(
-            'sui',         // from chain
-            'ETH',         // from token (SUI-side amount)
-            'USDC',        // to token on Base for the order
-            "0.00001",       // amount
-            suiSenderAddress, // from address
-            baseSenderAddress  // to address
-        );
-
-    } catch (error) {
-        console.error("❌ Swap failed:", error);
+        this.rl.prompt();
     }
 }
 
 // Export for external use
-export { AtomicSwap, runExample };
+export { AtomicSwapCLI };
 
-// Run the example if this file is run directly
+// Run the CLI if this file is run directly
 if (require.main === module) {
-    runExample().catch(console.error);
+    const cli = new AtomicSwapCLI();
+    cli.startCLI().catch(console.error);
 }
