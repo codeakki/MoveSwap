@@ -19,7 +19,7 @@ In our design, HTLC contracts act as escrow accounts:
 - **Ethereum HTLC**: Holds ETH/ERC20 tokens in smart contract escrow
 - **Sui HTLC**: Holds SUI/custom tokens in Move object escrow
 - **Conditional Release**: Funds only released when cryptographic conditions are met
-- **Time Protection**: Auto-refund prevents indefinite locking
+- **Time Protection**: Auto-refund prevents indefinite locking 
 
 ## 📁 Project Structure
 
@@ -27,13 +27,13 @@ In our design, HTLC contracts act as escrow accounts:
 MoveSwap/
 ├── contracts/
 │   ├── ethereum/
-│   │   └── HTLC.sol           # Ethereum HTLC contract
+│   │   └── HTLC.sol           # Ethereum Hash Time Lock Contracts contract
 │   └── sui/
 │       └── sources/
-│           └── htlc.move      # Sui Move HTLC contract
+│           └── htlc.move      # Sui Move Hash Time Lock Contracts contract
 ├── examples/
 │   ├── eth_sui_swap.ts        # Complete atomic swap implementation
-│   └── create_htcl.ts         # Individual HTLC creation utility
+│   └── create_htcl.ts         # Individual Hash Time Lock Contracts creation utility
 ├── config.json               # Contract addresses and configuration
 ├── .env.example              # Environment variables template
 └── package.json              # Dependencies and scripts
