@@ -2,7 +2,7 @@
 
 ## 🚀 Overview
 
-MoveSwap is a trustless cross-chain atomic swap protocol enabling secure token exchanges between Ethereum and Sui networks using Hash Time Lock Contracts (HTLCs). The protocol ensures atomic execution - either both sides of the swap complete successfully, or neither does.
+MoveSwap is a comprehensive cross-chain atomic swap protocol enabling secure token exchanges between Base (Ethereum L2) and Sui networks. The protocol combines Hash Time Lock Contracts (HTLCs) with 1inch Limit Order Protocol integration for efficient, trustless cross-chain swaps. The project includes both CLI tools and a modern React frontend for seamless user experience.
 
 ## 🎯 Core Concepts
 
@@ -29,30 +29,39 @@ MoveSwap/
 │   ├── ethereum/
 │   │   └── HTLC.sol           # Ethereum HTLC contract
 │   └── sui/
-│       └── sources/
-│           └── htlc.move      # Sui Move HTLC contract
+│       ├── sources/
+│       │   └── htlc.move      # Sui Move HTLC contract
+│       ├── Move.toml          # Sui package configuration
+│       └── build/             # Compiled Move bytecode
+├── frontend/                  # React frontend application
+│   ├── src/
+│   │   ├── App.jsx           # Main application component
+│   │   ├── components/       # UI components
+│   │   └── assets/           # Static assets
+│   ├── package.json          # Frontend dependencies
+│   └── vite.config.js        # Vite configuration
+├── test/
+│   ├── atomic_swap_cli.ts    # Interactive CLI for atomic swaps
+│   └── test_cli.js           # CLI test suite
 ├── examples/
-│   ├── eth_sui_swap.ts        # Complete atomic swap implementation
-│   └── create_htcl.ts         # Individual HTLC creation utility
-├── config.json               # Contract addresses and configuration
-├── .env.example              # Environment variables template
-└── package.json              # Dependencies and scripts
+│   └── eth_sui_swap.ts       # Complete atomic swap implementation
+├── scripts/
+│   └── deploy.ts             # Contract deployment scripts
+├── config.json               # Multi-network configuration
+├── package.json              # Main project dependencies
+├── hardhat.config.js         # Hardhat configuration
+└── README.md                 # This documentation
 ```
 
-This comprehensive README includes:
+## 🎯 Key Features
 
-1. ✅ **Complete function documentation** for all contracts
-2. ✅ **Detailed environment setup** with example values
-3. ✅ **Step-by-step flow diagrams** and explanations
-4. ✅ **Architecture overview** with escrow concepts
-5. ✅ **Usage examples** and implementation guides
-6. ✅ **Development setup** and testing instructions
-7. ✅ **Security considerations** and best practices
-8. ✅ **Contract deployment** procedures
-9. ✅ **Transaction monitoring** features
-10. ✅ **Project structure** and file organization
-
-Would you like me to add any specific sections or modify any part of this documentation?
+- **Cross-Chain Atomic Swaps**: Secure token exchanges between Base and Sui
+- **1inch Integration**: Efficient DEX integration for Base chain swaps
+- **HTLC Security**: Hash Time Lock Contracts ensure atomic execution
+- **Interactive CLI**: Step-by-step swap execution with progress tracking
+- **Modern Frontend**: React-based UI for user-friendly swap interface
+- **Multi-Network Support**: Mainnet and testnet configurations
+- **Comprehensive Testing**: CLI test suite and validation tools
 
 ## ⚙️ Environment Setup
 
@@ -62,6 +71,7 @@ Would you like me to add any specific sections or modify any part of this docume
 - **npm/yarn**: Package manager
 - **Sui CLI**: For Sui blockchain interaction
 - **Git**: Version control
+- **pnpm**: For frontend dependencies (optional)
 
 ### 2. Installation
 
@@ -70,11 +80,16 @@ Would you like me to add any specific sections or modify any part of this docume
 git clone https://github.com/codeakki/MoveSwap.git
 cd MoveSwap
 
-# Install dependencies
+# Install main dependencies
 npm install
 
+# Install frontend dependencies (optional)
+cd frontend
+npm install
+cd ..
+
 # Copy environment template
-cp .env.example .env
+cp env.example .env
 ```
 
 ### 3. Environment Variables
@@ -82,19 +97,16 @@ cp .env.example .env
 Create a `.env` file with the following variables:
 
 ```env
-# Ethereum Configuration
-ETH_PRIVATE_KEY=your_ethereum_private_key_here
-ETH_RECEIVER_ADDRESS=0x_your_ethereum_address
+# Base Configuration
+BASE_PRIVATE_KEY=your_base_private_key_here
+BASE_RPC_URL=https://base-mainnet.g.alchemy.com/v2/YOUR_KEY
 
 # Sui Configuration  
 SUI_PRIVATE_KEY=your_sui_private_key_here
-SUI_RECEIVER_ADDRESS=0x_your_sui_address
-SUI_NETWORK=testnet
-SUI_PACKAGE_ID=0x_deployed_sui_package_id
+SUI_RPC_URL=https://sui-mainnet-rpc.allthatnode.com
 
-# Network Configuration
-ETH_RPC_URL=https://ethereum-sepolia-rpc.publicnode.com
-SUI_RPC_URL=https://fullnode.testnet.sui.io:443
+# Network Selection
+NETWORK=mainnet  # or base-sepolia for testnet
 
 # Optional: 1inch Integration
 DEV_PORTAL_API_TOKEN=your_1inch_api_key
@@ -105,8 +117,8 @@ MAX_PRIORITY_FEE_PER_GAS=0.0001
 GAS_LIMIT=300000
 
 # Timelock Configuration (in seconds)
-ETH_TIMELOCK_DURATION=7200  # 2 hours
-SUI_TIMELOCK_DURATION=3600  # 1 hour
+BASE_TIMELOCK_DURATION=7200  # 2 hours
+SUI_TIMELOCK_DURATION=3600   # 1 hour
 ```
 
 ## 🔗 Smart Contracts Documentation
@@ -335,27 +347,47 @@ class AtomicSwap {
 
 ## 🛠️ Usage Examples
 
-### Running the Complete Swap
+### 1. Interactive CLI
+
+The project includes a comprehensive CLI for step-by-step atomic swap execution:
 
 ```bash
-# Run the complete ETH to SUI swap example
-npm start
+# Start the interactive CLI
+npx ts-node test/atomic_swap_cli.ts
+
+# Initialize a Base to SUI swap
+init-swap base ETH USDC 0.001 0x_sender_address 0x_receiver_address
+
+# Create Base limit order
+create-base-order
+
+# Create Sui HTLC
+create-sui-htlc
+
+# Wait for Sui finalization
+wait-for-sui-finalization
+
+# Claim Sui HTLC (reveals secret)
+claim-sui-htlc
+
+# Execute Base order
+execute-base-order
 ```
 
-### Creating Individual HTLCs
+### 2. Frontend Application
+
+Launch the React frontend for a user-friendly interface:
 
 ```bash
-# Create a Sui HTLC only
-npm run create-sui-htlc
+# Start the frontend development server
+cd frontend
+npm run dev
 
-# Set environment variables for individual creation
-export ORDER_ID="swap_123"
-export SUI_PRIVATE_KEY="your_private_key"
-export SUI_RECEIVER_ADDRESS="0x_receiver_address"
-export SUI_PACKAGE_ID="0x_deployed_package_id"
+# Build for production
+npm run build
 ```
 
-### Custom Implementation
+### 3. Programmatic Usage
 
 ```typescript
 import { AtomicSwap } from './examples/eth_sui_swap';
@@ -369,6 +401,19 @@ await swap.performETHtoSUISwap(
     "0x_eth_receiver_address",  // ETH recipient
     "0x_sui_receiver_address"   // SUI recipient
 );
+```
+
+### 4. Testing
+
+```bash
+# Run CLI tests
+node test/test_cli.js
+
+# Run Hardhat tests
+npm run test:hardhat
+
+# Run all tests
+npm test
 ```
 
 ## 🔧 Development
@@ -410,29 +455,79 @@ sui client publish --gas-budget 100000000
 
 ### Configuration
 
-Update `config.json` with deployed contract addresses:
+The project uses a comprehensive `config.json` for multi-network support:
 
 ```json
 {
-    "ethereum": {
-        "rpc": "https://eth-sepolia.g.alchemy.com/v2/YOUR-KEY",
-        "htlcAddress": "0x_deployed_ethereum_htlc_address",
-        "privateKey": "YOUR_ETHEREUM_PRIVATE_KEY_HERE"
+    "base": {
+        "rpc": "https://base-mainnet.g.alchemy.com/v2/YOUR_KEY",
+        "htlcContract": "0x_deployed_htlc_address",
+        "limitOrderProtocol": "0x111111125421ca6dc452d289314280a0f8842a65",
+        "weth": "0x4200000000000000000000000000000000000006",
+        "usdc": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "privateKey": "YOUR_BASE_PRIVATE_KEY",
+        "chainId": 8453
     },
     "sui": {
-        "rpc": "https://fullnode.testnet.sui.io:443",
         "packageId": "0x_deployed_sui_package_id",
-        "privateKey": "YOUR_SUI_PRIVATE_KEY_HERE"
+        "privateKey": "YOUR_SUI_PRIVATE_KEY"
+    },
+    "tokens": {
+        "ETH": "0x0000000000000000000000000000000000000000",
+        "WETH": "0x4200000000000000000000000000000000000006",
+        "USDC": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+    },
+    "networks": {
+        "mainnet": { /* mainnet configuration */ },
+        "base-sepolia": { /* testnet configuration */ }
     }
 }
+```
+
+## 🎨 Frontend Application
+
+The project includes a modern React frontend built with Vite and Tailwind CSS:
+
+### Features
+- **Interactive Swap Interface**: User-friendly token swap interface
+- **Real-time Progress Tracking**: Visual progress indicators for swap steps
+- **Multi-Chain Support**: Support for Base and Sui networks
+- **Responsive Design**: Mobile-friendly interface
+- **Modern UI Components**: Built with Radix UI and Tailwind CSS
+
+### Frontend Structure
+```
+frontend/
+├── src/
+│   ├── App.jsx              # Main application component
+│   ├── components/          # Reusable UI components
+│   │   └── ui/             # Base UI components (Button, Card, etc.)
+│   ├── hooks/              # Custom React hooks
+│   ├── lib/                # Utility functions
+│   └── assets/             # Static assets
+├── package.json            # Frontend dependencies
+└── vite.config.js          # Vite configuration
+```
+
+### Development Commands
+```bash
+# Start development server
+cd frontend
+npm run dev
+
+# Build for production
+npm run build
+
+# Preview production build
+npm run preview
 ```
 
 ## 🛡️ Security Considerations
 
 ### Timelock Strategy
-- **Ethereum timelock**: Longer (2 hours) - gives time for Sui claim
+- **Base timelock**: Longer (2 hours) - gives time for Sui claim
 - **Sui timelock**: Shorter (1 hour) - forces Alice to claim first
-- **Critical**: Sui must be claimed before Ethereum to reveal secret
+- **Critical**: Sui must be claimed before Base to reveal secret
 
 ### Best Practices
 1. **Test with small amounts** first
@@ -442,20 +537,21 @@ Update `config.json` with deployed contract addresses:
 5. **Implement retry mechanisms** for failed transactions
 
 ### Common Pitfalls
-- **Timelock ordering**: Sui timelock must be shorter than Ethereum
+- **Timelock ordering**: Sui timelock must be shorter than Base
 - **Gas estimation**: Set explicit gas limits for reliable execution
 - **Secret management**: Never share secrets before both HTLCs are created
 - **Network delays**: Account for block confirmation times
+- **1inch Integration**: Ensure proper order validation and gas estimation
 
 ## 📊 Transaction Monitoring
 
 The implementation includes comprehensive logging with:
 - 🔗 Transaction hashes for all operations
-- 🔍 Block explorer links (Etherscan & Sui Explorer)
+- 🔍 Block explorer links (BaseScan & Sui Explorer)
 - ⛽ Gas usage tracking
 - 💰 Amount and balance verification
 - 🎯 Step-by-step progress indicators
-
+- 🔄 CLI progress tracking with detailed logs
 ## 🤝 Contributing
 
 1. Fork the repository
@@ -470,14 +566,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🙏 Acknowledgments
 
-- [1inch Protocol](https://1inch.io/) for inspiration and cross-chain protocols
+- [1inch Protocol](https://1inch.io/) for Limit Order Protocol and DEX integration
 - [Sui Foundation](https://sui.io/) for Move language and blockchain infrastructure
-- [Ethereum Foundation](https://ethereum.org/) for smart contract capabilities
+- [Base](https://base.org/) for Ethereum L2 infrastructure
 - [OpenZeppelin](https://openzeppelin.com/) for secure contract libraries
+- [Radix UI](https://www.radix-ui.com/) for accessible UI components
 
-## 📞 Support
 
-For questions, issues, or contributions:
-- Create an [issue](https://github.com/codeakki/MoveSwap/issues)
-- Join our [Discord](https://discord.gg/moveswap) (coming soon)
-- Follow [@MoveSwap](https://twitter.com/moveswap) (coming soon)
