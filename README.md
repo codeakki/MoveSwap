@@ -279,8 +279,8 @@ public entry fun refund_htlc(
 
 ```mermaid
 sequenceDiagram
-    participant Alice as Alice (ETH)
-    participant EthHTLC as Ethereum HTLC
+    participant Alice as Alice (Base)
+    participant OneInch as 1inch Limit Order
     participant SuiHTLC as Sui HTLC
     participant Bob as Bob (SUI)
 
@@ -289,17 +289,22 @@ sequenceDiagram
     Alice->>Bob: Share hashlock (not secret)
 
     Note over Alice,Bob: 2. Lock Phase
-    Alice->>EthHTLC: createHTLC(id, Bob, hashlock, timelock, ETH)
+    Alice->>OneInch: createBaseLimitOrder(WETH→USDC, hashlock, timelock)
     Bob->>SuiHTLC: create_htlc(id, Alice, hashlock, timelock, SUI)
 
-    Note over Alice,Bob: 3. Claim Phase (Order matters!)
+    Note over Alice,Bob: 3. Wait for Finalization
+    Alice->>Alice: waitForSuiFinalization()
+    Note over Alice: Sui HTLC transaction finalized
+
+    Note over Alice,Bob: 4. Claim Phase (Order matters!)
     Alice->>SuiHTLC: claim_with_secret(secret)
     Note over SuiHTLC: Secret now revealed on-chain
-    Bob->>EthHTLC: claimHTLC(secret) [using revealed secret]
+    Alice->>OneInch: executeLimitOrder(secret) [using revealed secret]
 
-    Note over Alice,Bob: 4. Result
-    Note over Alice: Alice gets SUI
-    Note over Bob: Bob gets ETH
+    Note over Alice,Bob: 5. Result
+    Note over Alice: Alice gets SUI from Sui HTLC
+    Note over Alice: Alice gets USDC from 1inch swap
+    Note over Bob: Bob gets WETH from 1inch swap
 ```
 
 ### Implementation Example
@@ -307,25 +312,56 @@ sequenceDiagram
 ```typescript
 // examples/eth_sui_swap.ts
 class AtomicSwap {
-    async performETHtoSUISwap(
-        ethAmount: string,
-        suiAmount: string, 
-        ethReceiver: string,
-        suiReceiver: string
+    async performAtomicSwap(
+        fromChain: 'base' | 'sui',
+        fromTokenSymbol: string,
+        toTokenSymbol: string,
+        amount: string,
+        fromAddress: string,
+        toAddress: string
     ): Promise<boolean> {
         // 1. Generate cryptographic materials
-        const { secret, hashlock, htlcId, ethTimelock, suiTimelock } = 
+        const { secret, hashlock, htlcId, baseTimelock, suiTimelock } = 
             this.generateSwapDetails();
 
-        // 2. Create Ethereum HTLC (Alice locks ETH)
-        const ethHtlcResult = await this.createEthereumHTLC(
-            htlcId, ethReceiver, hashlock, ethTimelock, ethAmount
-        );
+        let baseLimitOrder: { order: any, signature: string, orderHash: string } | null = null;
+        let suiHtlcResult: any = null;
 
-        // 3. Create Sui HTLC (Bob locks SUI)
-        const suiHtlcResult = await this.createSuiHTLC(
-            htlcId, suiReceiver, hashlock, suiTimelock, suiAmount
-        );
+        if (fromChain === 'base') {
+            // 2. Create Base 1inch Limit Order (Alice creates order)
+            const orderParams: SwapParams = {
+                fromToken: this.getTokenInfo(fromTokenSymbol),
+                toToken: this.getTokenInfo(toTokenSymbol),
+                amount,
+                fromAddress: this.baseWallet.address,
+                toAddress,
+                secretHash: htlcId,
+                validUntil: baseTimelock
+            };
+            baseLimitOrder = await this.createBaseLimitOrder(orderParams);
+
+            // 3. Create Sui HTLC (Bob locks SUI)
+            suiHtlcResult = await this.createSuiHTLC(
+                htlcId, toAddress, hashlock, suiTimelock, amount
+            );
+        } else {
+            // 3. Create Sui HTLC first (Bob locks SUI)
+            suiHtlcResult = await this.createSuiHTLC(
+                htlcId, fromAddress, hashlock, suiTimelock, amount
+            );
+
+            // 2. Create Base 1inch Limit Order (Alice creates order)
+            const orderParams: SwapParams = {
+                fromToken: this.getTokenInfo(fromTokenSymbol),
+                toToken: this.getTokenInfo(toTokenSymbol),
+                amount,
+                fromAddress,
+                toAddress: this.baseWallet.address,
+                secretHash: htlcId,
+                validUntil: baseTimelock
+            };
+            baseLimitOrder = await this.createBaseLimitOrder(orderParams);
+        }
 
         // 4. Wait for Sui transaction finalization
         await this.suiClient.waitForTransaction({
@@ -337,8 +373,14 @@ class AtomicSwap {
             htlcId, secret, hashlock, suiHtlcResult.digest
         );
 
-        // 6. Claim Ethereum HTLC (Bob uses revealed secret)
-        const ethClaimResult = await this.claimEthereumHTLC(htlcId, secret);
+        // 6. Execute Base 1inch Limit Order (using revealed secret)
+        if (baseLimitOrder) {
+            await this.executeLimitOrder(
+                baseLimitOrder.order, 
+                baseLimitOrder.signature, 
+                secret
+            );
+        }
 
         return true;
     }
@@ -358,7 +400,7 @@ npx ts-node test/atomic_swap_cli.ts
 # Initialize a Base to SUI swap
 init-swap base ETH USDC 0.001 0x_sender_address 0x_receiver_address
 
-# Create Base limit order
+# Create Base 1inch Limit Order
 create-base-order
 
 # Create Sui HTLC
@@ -370,7 +412,7 @@ wait-for-sui-finalization
 # Claim Sui HTLC (reveals secret)
 claim-sui-htlc
 
-# Execute Base order
+# Execute Base 1inch Limit Order
 execute-base-order
 ```
 
@@ -394,12 +436,24 @@ import { AtomicSwap } from './examples/eth_sui_swap';
 
 const swap = new AtomicSwap();
 
-// Execute swap with custom parameters
-await swap.performETHtoSUISwap(
-    "0.001",                    // ETH amount
-    "1.0",                      // SUI amount  
-    "0x_eth_receiver_address",  // ETH recipient
+// Execute Base to SUI swap
+await swap.performAtomicSwap(
+    'base',                     // from chain
+    'ETH',                      // from token (mapped to WETH)
+    'USDC',                     // to token
+    "0.001",                    // amount
+    "0x_base_sender_address",   // Base sender
     "0x_sui_receiver_address"   // SUI recipient
+);
+
+// Execute SUI to Base swap
+await swap.performAtomicSwap(
+    'sui',                      // from chain
+    'ETH',                      // from token (SUI amount)
+    'USDC',                     // to token on Base
+    "0.00001",                  // amount
+    "0x_sui_sender_address",    // SUI sender
+    "0x_base_receiver_address"  // Base recipient
 );
 ```
 
