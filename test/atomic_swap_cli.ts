@@ -35,7 +35,7 @@ console.log('Network config type:', typeof networkConfig);
 
 const config = {
     // Base Configuration
-    baseRPC: process.env.BASE_RPC || networkConfig?.base?.rpc || 'https://base-mainnet.g.alchemy.com/v2/9IGMuw0KkOPTMWaWT6y_P',
+    baseRPC: process.env.BASE_RPC || networkConfig?.base?.rpc ,
     basePrivateKey: process.env.BASE_PRIVATE_KEY || configData.base.privateKey,
 
     // Base Configuration
