@@ -4,8 +4,8 @@
         "htlcContract": "0x4eEDCb01601F9e488B45B99a33510ab814E3383B",
         "limitOrderProtocol": "0x111111125421ca6dc452d289314280a0f8842a65",
         "weth": "0x4200000000000000000000000000000000000006",
-        "usdc": "ETH_PRIVATE_KEY",
-        "privateKey": "22dd0b028cba53bc1d93cd86409b10f36adb217b7e3f3544b051801cd1cf78ac",
+        "usdc": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "privateKey": "ETH_PRIVATE_KEY",
         "chainId": 8453
     },
     "sui": {
